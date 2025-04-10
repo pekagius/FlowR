@@ -32,5 +32,5 @@ exec { & dotnet build -c Release }
 
 exec { & dotnet test -c Release --no-build -l trx --verbosity=normal }
 
-exec { & dotnet pack .\src\MediatR\MediatR.csproj -c Release -o $artifacts --no-build }
+exec { & dotnet pack .\src\FlowR\FlowR.csproj -c Release -o $artifacts --no-build }
 

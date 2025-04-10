@@ -23,7 +23,7 @@ function Exec
 }
 
 $artifacts = ".\artifacts"
-$contracts = ".\src\MediatR.Contracts\MediatR.Contracts.csproj"
+$contracts = ".\src\FlowR.Contracts\FlowR.Contracts.csproj"
 
 if(Test-Path $artifacts) { Remove-Item $artifacts -Force -Recurse }
 

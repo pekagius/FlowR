@@ -1,89 +1,119 @@
-MediatR
-=======
+# FlowR
 
-![CI](https://github.com/jbogard/MediatR/workflows/CI/badge.svg)
-[![NuGet](https://img.shields.io/nuget/dt/mediatr.svg)](https://www.nuget.org/packages/mediatr) 
-[![NuGet](https://img.shields.io/nuget/vpre/mediatr.svg)](https://www.nuget.org/packages/mediatr)
-[![MyGet (dev)](https://img.shields.io/myget/mediatr-ci/v/MediatR.svg)](https://myget.org/gallery/mediatr-ci)
+![Build Status](https://github.com/pekagi/FlowR/workflows/CI/badge.svg)
+[![NuGet](https://img.shields.io/nuget/dt/flowr.svg)](https://www.nuget.org/packages/flowr) 
+[![NuGet](https://img.shields.io/nuget/vpre/flowr.svg)](https://www.nuget.org/packages/flowr)
 
-Simple mediator implementation in .NET
+## About FlowR
 
-In-process messaging with no dependencies.
+FlowR is an open-source continuation of the MediatR library, which became commercial starting with version 13. This fork aims to maintain the simplicity and power of the original while ensuring it remains freely available to the community.
 
-Supports request/response, commands, queries, notifications and events, synchronous and async with intelligent dispatching via C# generic variance.
+FlowR is an elegant and powerful mediator implementation for .NET with a focus on workflow automation. Unlike other frameworks, FlowR relies on clear communication patterns and seamlessly supports both simple and complex use cases.
 
-Examples in the [wiki](https://github.com/jbogard/MediatR/wiki).
+The library enables:
+- Clean separation of request and processing (CQRS pattern)
+- Implementation of complex workflows through chained requests
+- Easy extensibility through pipeline behaviors
+- Support for synchronous and asynchronous code
+- Full compatibility with legacy MediatR projects
 
-### Installing MediatR
+## Installation
 
-You should install [MediatR with NuGet](https://www.nuget.org/packages/MediatR):
+FlowR can be easily installed via NuGet:
 
-    Install-Package MediatR
-    
-Or via the .NET Core command line interface:
+```
+Install-Package FlowR
+```
 
-    dotnet add package MediatR
+Or via the .NET Core command line:
 
-Either commands, from Package Manager Console or .NET Core CLI, will download and install MediatR and all required dependencies.
+```
+dotnet add package FlowR
+```
 
-### Using Contracts-Only Package
+## Using Only the Contracts
 
-To reference only the contracts for MediatR, which includes:
+To use only the contract classes and interfaces (useful when you only need definitions in a separate assembly):
 
+```
+Install-Package FlowR.Contracts
+```
+
+This includes:
 - `IRequest` (including generic variants)
 - `INotification`
 - `IStreamRequest`
 
-Add a package reference to [MediatR.Contracts](https://www.nuget.org/packages/MediatR.Contracts)
+## Registration with `IServiceCollection`
 
-This package is useful in scenarios where your MediatR contracts are in a separate assembly/project from handlers. Example scenarios include:
-- API contracts
-- GRPC contracts
-- Blazor
-
-### Registering with `IServiceCollection`
-
-MediatR supports `Microsoft.Extensions.DependencyInjection.Abstractions` directly. To register various MediatR services and handlers:
-
-```
-services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Startup>());
-```
-
-or with an assembly:
-
-```
-services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Startup).Assembly));
-```
-
-This registers:
-
-- `IMediator` as transient
-- `ISender` as transient
-- `IPublisher` as transient
-- `IRequestHandler<,>` concrete implementations as transient
-- `IRequestHandler<>` concrete implementations as transient
-- `INotificationHandler<>` concrete implementations as transient
-- `IStreamRequestHandler<>` concrete implementations as transient
-- `IRequestExceptionHandler<,,>` concrete implementations as transient
-- `IRequestExceptionAction<,>)` concrete implementations as transient
-
-This also registers open generic implementations for:
-
-- `INotificationHandler<>`
-- `IRequestExceptionHandler<,,>`
-- `IRequestExceptionAction<,>`
-
-To register behaviors, stream behaviors, pre/post processors:
+FlowR supports direct integration with `Microsoft.Extensions.DependencyInjection.Abstractions`:
 
 ```csharp
-services.AddMediatR(cfg => {
-    cfg.RegisterServicesFromAssembly(typeof(Startup).Assembly);
-    cfg.AddBehavior<PingPongBehavior>();
-    cfg.AddStreamBehavior<PingPongStreamBehavior>();
-    cfg.AddRequestPreProcessor<PingPreProcessor>();
-    cfg.AddRequestPostProcessor<PingPongPostProcessor>();
-    cfg.AddOpenBehavior(typeof(GenericBehavior<,>));
-    });
+services.AddFlowR(cfg => cfg.RegisterServicesFromAssemblyContaining<Startup>());
 ```
 
-With additional methods for open generics and overloads for explicit service types.
+Or with an assembly:
+
+```csharp
+services.AddFlowR(cfg => cfg.RegisterServicesFromAssembly(typeof(Startup).Assembly));
+```
+
+## Core Concepts
+
+### Requests
+
+Requests are objects that represent a requirement and expect a response:
+
+```csharp
+public record GetUserQuery(int UserId) : IRequest<UserDto>;
+
+public class GetUserQueryHandler : IRequestHandler<GetUserQuery, UserDto>
+{
+    public async Task<UserDto> Handle(GetUserQuery request, CancellationToken cancellationToken)
+    {
+        // Implementation to retrieve a user
+    }
+}
+```
+
+### Notifications
+
+Notifications allow publishing events to multiple handlers:
+
+```csharp
+public record UserCreatedNotification(int UserId, string Username) : INotification;
+
+public class EmailNotificationHandler : INotificationHandler<UserCreatedNotification>
+{
+    public async Task Handle(UserCreatedNotification notification, CancellationToken cancellationToken)
+    {
+        // Send a welcome email
+    }
+}
+```
+
+### Pipeline Behavior
+
+FlowR allows inserting custom behaviors into the request pipeline:
+
+```csharp
+public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : IRequest<TResponse>
+{
+    public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
+    {
+        // Log before processing
+        var response = await next();
+        // Log after processing
+        return response;
+    }
+}
+```
+
+## Compatibility with MediatR
+
+FlowR provides full compatibility with MediatR through type forwarding and interface aliases. This enables seamless migration from existing MediatR projects to FlowR.
+
+## License
+
+FlowR is available under the Apache 2.0 license. See LICENSE for details.
