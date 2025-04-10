@@ -1,9 +1,5 @@
 # FlowR
 
-![Build Status](https://github.com/pekagi/FlowR/workflows/CI/badge.svg)
-[![NuGet](https://img.shields.io/nuget/dt/flowr.svg)](https://www.nuget.org/packages/flowr) 
-[![NuGet](https://img.shields.io/nuget/vpre/flowr.svg)](https://www.nuget.org/packages/flowr)
-
 ## About FlowR
 
 FlowR is an open-source continuation of the MediatR library, which became commercial starting with version 13. This fork aims to maintain the simplicity and power of the original while ensuring it remains freely available to the community.
