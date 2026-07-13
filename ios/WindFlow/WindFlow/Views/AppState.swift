@@ -98,12 +98,14 @@ final class AppState: ObservableObject {
                 self.isLoadingGrid = true
                 defer { self.isLoadingGrid = false }
                 do {
-                    let frames = try await RainViewerClient.shared.frames()
-                    guard !Task.isCancelled else { return }
-                    self.rainViewer = frames
-                    // Snap the timeline into the raster range.
-                    if let range = self.timelineRange, !range.contains(self.timelineDate) {
-                        self.timelineDate = range.upperBound > Date() ? Date() : range.lowerBound
+                    if self.selectedLayer != .satelliteVisible {
+                        let frames = try await RainViewerClient.shared.frames()
+                        guard !Task.isCancelled else { return }
+                        self.rainViewer = frames
+                    }
+                    // Clamp the timeline into the raster range.
+                    if let range = self.timelineRange {
+                        self.timelineDate = min(max(range.lowerBound, self.timelineDate), range.upperBound)
                     }
                     self.statusMessage = nil
                 } catch {
@@ -152,6 +154,12 @@ final class AppState: ObservableObject {
             guard let frames = rainViewer?.satellite, let f = frames.first, let l = frames.last,
                   f.time < l.time else { return nil }
             return f.time...l.time
+        case .satelliteVisible:
+            // NASA GIBS true-color imagery: one image per day, ~8 recent days
+            // (current day is usually incomplete, so end yesterday).
+            let calendar = Calendar(identifier: .gregorian)
+            let yesterday = calendar.startOfDay(for: Date().addingTimeInterval(-86400))
+            return yesterday.addingTimeInterval(-7 * 86400)...yesterday
         default:
             return grid?.timeRange ?? Date()...Date().addingTimeInterval(7 * 86400)
         }
@@ -163,6 +171,7 @@ final class AppState: ObservableObject {
 
     /// Tile URL template for the radar/satellite frame nearest to the timeline.
     var rasterTileTemplate: String? {
+        if selectedLayer == .satelliteVisible { return independentRasterTemplate }
         guard let rainViewer else { return nil }
         switch selectedLayer {
         case .radar:
@@ -174,6 +183,21 @@ final class AppState: ObservableObject {
         default:
             return nil
         }
+    }
+
+    private static let gibsDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = TimeZone(identifier: "UTC")
+        return f
+    }()
+
+    /// Tile template for layers that don't need the RainViewer frame index.
+    var independentRasterTemplate: String? {
+        guard selectedLayer == .satelliteVisible else { return nil }
+        let clamped = timelineRange.map { min(max(timelineDate, $0.lowerBound), $0.upperBound) } ?? timelineDate
+        let day = Self.gibsDateFormatter.string(from: clamped)
+        return "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/\(day)/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"
     }
 
     func togglePlay() {
@@ -220,7 +244,17 @@ final class AppState: ObservableObject {
     }
 
     func pickCoordinate(_ coordinate: CLLocationCoordinate2D) {
-        selectedPlace = Place.fromCoordinate(coordinate)
+        let place = Place.fromCoordinate(coordinate)
+        selectedPlace = place
+        // Resolve a human-readable name asynchronously (free reverse geocoder).
+        Task { [weak self] in
+            guard let named = await ReverseGeocodeService.shared.name(for: coordinate) else { return }
+            guard let self, self.selectedPlace?.id == place.id else { return }
+            var updated = place
+            updated.name = named.name
+            updated.subtitle = named.subtitle
+            self.selectedPlace = updated
+        }
     }
 
     func centerOnUser() {

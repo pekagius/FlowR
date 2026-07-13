@@ -20,7 +20,10 @@ struct PointForecastSheet: View {
         case waves = "Waves"
         case tides = "Tides"
         case airQuality = "Air quality"
+        case ensemble = "Ensemble"
         case compare = "Compare"
+        case history = "History"
+        case aviation = "Aviation"
         case alerts = "Warnings"
     }
 
@@ -30,6 +33,7 @@ struct PointForecastSheet: View {
     @State private var airQuality: AirQualityForecast?
     @State private var warnings: [WeatherWarning] = []
     @State private var comparison: [ForecastModel: HourlySeries] = [:]
+    @State private var observation: ObservedWeather?
     @State private var loadError: String?
 
     private var availableTabs: [Tab] {
@@ -37,7 +41,7 @@ struct PointForecastSheet: View {
         if marine != nil { tabs.append(.waves) }
         if hasTideData { tabs.append(.tides) }
         if airQuality != nil { tabs.append(.airQuality) }
-        tabs.append(.compare)
+        tabs.append(contentsOf: [.ensemble, .compare, .history, .aviation])
         if !warnings.isEmpty { tabs.append(.alerts) }
         return tabs
     }
@@ -162,14 +166,17 @@ struct PointForecastSheet: View {
                 .frame(maxWidth: .infinity, minHeight: 160)
         } else if let forecast {
             switch tab {
-            case .forecast: ForecastTab(forecast: forecast)
+            case .forecast: ForecastTab(forecast: forecast, observation: observation)
             case .meteogram: MeteogramView(forecast: forecast)
             case .airgram: AirgramView(forecast: forecast)
             case .sounding: SoundingView(forecast: forecast)
             case .waves: if let marine { WavesView(marine: marine) }
             case .tides: if let marine { TidesView(marine: marine, timeZone: forecast.timeZone, place: place) }
             case .airQuality: if let airQuality { AirQualityView(airQuality: airQuality) }
+            case .ensemble: EnsembleView(place: place)
             case .compare: CompareModelsView(place: place, comparison: comparison)
+            case .history: HistoryView(place: place)
+            case .aviation: AviationView(place: place)
             case .alerts: WarningsView(warnings: warnings)
             }
         }
@@ -183,18 +190,21 @@ struct PointForecastSheet: View {
         marine = nil
         airQuality = nil
         warnings = []
+        observation = nil
         do {
             async let forecastTask = OpenMeteoClient.shared.pointForecast(for: place, model: appState.model)
             async let marineTask = OpenMeteoClient.shared.marineForecast(for: place)
             async let airTask = OpenMeteoClient.shared.airQualityForecast(for: place)
             async let warningsTask = AlertsService.shared.alerts(for: place.coordinate)
             async let comparisonTask = OpenMeteoClient.shared.compareModels(for: place, models: ForecastModel.comparable)
+            async let observationTask = BrightSkyService.shared.currentObservation(for: place.coordinate)
 
             forecast = try await forecastTask
             marine = (try? await marineTask) ?? nil
             airQuality = (try? await airTask) ?? nil
             warnings = (try? await warningsTask) ?? []
             comparison = (try? await comparisonTask) ?? [:]
+            observation = (try? await observationTask) ?? nil
         } catch {
             loadError = error.localizedDescription
         }
@@ -205,10 +215,15 @@ struct PointForecastSheet: View {
 
 struct ForecastTab: View {
     let forecast: PointForecast
+    var observation: ObservedWeather?
     @EnvironmentObject private var settings: Settings
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            if let observation {
+                observedCard(observation)
+            }
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(forecast.daily) { day in
@@ -216,6 +231,8 @@ struct ForecastTab: View {
                     }
                 }
             }
+
+            sunMoonCard
 
             Text("Hourly")
                 .font(.footnote.weight(.semibold))
@@ -227,6 +244,87 @@ struct ForecastTab: View {
                     Divider()
                 }
             }
+        }
+    }
+
+    /// Latest measured values from the nearest DWD station (Bright Sky).
+    private func observedCard(_ obs: ObservedWeather) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "dot.scope")
+                .foregroundStyle(.green)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Observed now · \(obs.stationName)")
+                    .font(.caption.weight(.semibold))
+                Text(String(format: "%.0f km away · DWD station", obs.distanceKm))
+                    .font(.system(size: 9)).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if let temp = obs.temperature {
+                Text(settings.temperatureUnit.format(celsius: temp))
+                    .font(.callout.bold())
+            }
+            if let wind = obs.windSpeedMS {
+                HStack(spacing: 2) {
+                    if let dir = obs.windDirection {
+                        Image(systemName: "arrow.up").font(.system(size: 8))
+                            .rotationEffect(.degrees(dir + 180))
+                    }
+                    Text("\(settings.windUnit.format(ms: wind)) \(settings.windUnit.label)")
+                        .font(.caption)
+                }
+                .foregroundStyle(.secondary)
+            }
+            if let pressure = obs.pressureHPa {
+                Text(settings.pressureUnit.format(hPa: pressure))
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+        .padding(10)
+        .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var sunTimeFormat: Date.FormatStyle {
+        var f = Date.FormatStyle.dateTime.hour().minute()
+        f.timeZone = forecast.timeZone
+        return f
+    }
+
+    /// Sunrise/sunset from the forecast plus a locally computed moon phase.
+    @ViewBuilder
+    private var sunMoonCard: some View {
+        if let today = forecast.daily.first(where: { Calendar.current.isDate($0.date, inSameDayAs: Date()) }) ?? forecast.daily.first {
+            let timeFormat = sunTimeFormat
+            HStack(spacing: 12) {
+                if let sunrise = today.sunrise {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sunrise.fill").symbolRenderingMode(.multicolor)
+                        Text(sunrise, format: timeFormat).font(.caption.monospacedDigit())
+                    }
+                }
+                if let sunset = today.sunset {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sunset.fill").symbolRenderingMode(.multicolor)
+                        Text(sunset, format: timeFormat).font(.caption.monospacedDigit())
+                    }
+                }
+                if let sunrise = today.sunrise, let sunset = today.sunset {
+                    let hours = sunset.timeIntervalSince(sunrise) / 3600
+                    Text(String(format: "%.0f h %02.0f min daylight", hours.rounded(.down), (hours.truncatingRemainder(dividingBy: 1)) * 60))
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+                Spacer()
+                HStack(spacing: 4) {
+                    Image(systemName: MoonPhase.symbol(for: Date()))
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(MoonPhase.name(for: Date())).font(.system(size: 9))
+                        Text("\(Int(MoonPhase.illumination(for: Date()) * 100)) %")
+                            .font(.system(size: 8)).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
         }
     }
 

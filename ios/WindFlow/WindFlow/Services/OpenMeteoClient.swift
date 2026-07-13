@@ -171,6 +171,58 @@ struct OpenMeteoClient {
         }
     }
 
+    // MARK: Ensemble forecast (member spread → forecast uncertainty)
+
+    /// Returns the hourly block of an ensemble run; variables appear as
+    /// e.g. "temperature_2m" plus "temperature_2m_member01"… for each member.
+    func ensembleForecast(for place: Place) async throws -> HourlySeries? {
+        for model in ["icon_seamless", "gfs_seamless"] {
+            var components = URLComponents(string: "https://ensemble-api.open-meteo.com/v1/ensemble")!
+            components.queryItems = [
+                .init(name: "latitude", value: String(place.latitude)),
+                .init(name: "longitude", value: String(place.longitude)),
+                .init(name: "hourly", value: "temperature_2m,precipitation,wind_speed_10m"),
+                .init(name: "models", value: model),
+                .init(name: "wind_speed_unit", value: "ms"),
+                .init(name: "timeformat", value: "unixtime"),
+                .init(name: "timezone", value: "auto"),
+                .init(name: "forecast_days", value: "7"),
+            ]
+            if let response = try? await fetchSingle(components), let hourly = response.hourly {
+                return HourlySeries(times: hourly.dates, values: hourly.numeric)
+            }
+        }
+        return nil
+    }
+
+    // MARK: Recent history (observed/reanalyzed past days)
+
+    struct HistoryData {
+        let hourly: HourlySeries
+        let daily: [DailySummary]
+    }
+
+    func history(for place: Place, pastDays: Int = 31) async throws -> HistoryData {
+        var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
+        components.queryItems = [
+            .init(name: "latitude", value: String(place.latitude)),
+            .init(name: "longitude", value: String(place.longitude)),
+            .init(name: "hourly", value: "temperature_2m,precipitation,wind_speed_10m"),
+            .init(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,sunrise,sunset,uv_index_max"),
+            .init(name: "past_days", value: String(pastDays)),
+            .init(name: "forecast_days", value: "1"),
+            .init(name: "wind_speed_unit", value: "ms"),
+            .init(name: "timeformat", value: "unixtime"),
+            .init(name: "timezone", value: "auto"),
+        ]
+        let response = try await fetchSingle(components)
+        guard let hourly = response.hourly else { throw OpenMeteoError.emptyResponse }
+        return HistoryData(
+            hourly: HourlySeries(times: hourly.dates, values: hourly.numeric),
+            daily: Self.parseDaily(response.daily)
+        )
+    }
+
     // MARK: Marine + air quality point forecasts
 
     func marineForecast(for place: Place) async throws -> MarineForecast? {

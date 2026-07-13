@@ -179,6 +179,11 @@ struct ColorScale {
         .init(0.6, 0xE0973C), .init(1.2, 0xD1503C), .init(2, 0x8A2F62),
     ])
 
+    static let pollen = ColorScale(stops: [               // grains/m³
+        .init(0, 0x4E7CB4), .init(10, 0x64AC50), .init(30, 0xC7C040),
+        .init(80, 0xE0973C), .init(200, 0xD1503C), .init(600, 0x8A2F8F),
+    ])
+
     static let aqi = ColorScale(stops: [                  // US AQI
         .init(0, 0x64AC50), .init(50, 0xC7C040), .init(100, 0xE0973C),
         .init(150, 0xD1503C), .init(200, 0x8A2F8F), .init(300, 0x6E1E38),

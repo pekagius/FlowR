@@ -155,9 +155,9 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
     // Sea
     case waves, windWaves, swell1, swell2, currents, seaTemperature, seaLevel
     // Air quality
-    case pm25, pm10, no2, ozone, so2, co, dust, aod, usAQI
+    case pm25, pm10, no2, ozone, so2, co, dust, aod, usAQI, grassPollen, birchPollen
     // Raster
-    case radar, satellite
+    case radar, satellite, satelliteVisible
 
     var id: String { rawValue }
 
@@ -200,8 +200,11 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
         case .dust: return "Dust mass"
         case .aod: return "Aerosol optical depth"
         case .usAQI: return "Air quality index"
+        case .grassPollen: return "Grass pollen"
+        case .birchPollen: return "Birch pollen"
         case .radar: return "Weather radar"
         case .satellite: return "Satellite (IR)"
+        case .satelliteVisible: return "Satellite (visible)"
         }
     }
 
@@ -229,8 +232,10 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
         case .pm25, .pm10, .dust, .aod: return "aqi.medium"
         case .no2, .ozone, .so2, .co: return "carbon.monoxide.cloud"
         case .usAQI: return "leaf"
+        case .grassPollen, .birchPollen: return "allergens"
         case .radar: return "dot.radiowaves.left.and.right"
         case .satellite: return "globe.europe.africa"
+        case .satelliteVisible: return "globe.americas"
         }
     }
 
@@ -242,16 +247,16 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
         case .clouds, .cloudsLow, .cloudsMid, .cloudsHigh, .visibility, .uvIndex, .solarRadiation: return .clouds
         case .pressure, .cape: return .pressure
         case .waves, .windWaves, .swell1, .swell2, .currents, .seaTemperature, .seaLevel: return .sea
-        case .pm25, .pm10, .no2, .ozone, .so2, .co, .dust, .aod, .usAQI: return .airQuality
-        case .radar, .satellite: return .radar
+        case .pm25, .pm10, .no2, .ozone, .so2, .co, .dust, .aod, .usAQI, .grassPollen, .birchPollen: return .airQuality
+        case .radar, .satellite, .satelliteVisible: return .radar
         }
     }
 
     var source: LayerSource {
         switch self {
         case .waves, .windWaves, .swell1, .swell2, .currents, .seaTemperature, .seaLevel: return .marine
-        case .pm25, .pm10, .no2, .ozone, .so2, .co, .dust, .aod, .usAQI: return .airQuality
-        case .radar, .satellite: return .rasterTiles
+        case .pm25, .pm10, .no2, .ozone, .so2, .co, .dust, .aod, .usAQI, .grassPollen, .birchPollen: return .airQuality
+        case .radar, .satellite, .satelliteVisible: return .rasterTiles
         case .rainAccumulation: return .computed
         default: return .forecast
         }
@@ -276,7 +281,8 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
         case .pm25, .pm10, .no2, .ozone, .so2, .co, .dust: return .microgram
         case .aod: return .none
         case .usAQI: return .index
-        case .radar, .satellite: return .none
+        case .grassPollen, .birchPollen: return .index
+        case .radar, .satellite, .satelliteVisible: return .none
         }
     }
 
@@ -336,7 +342,9 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
         case .dust: return "dust"
         case .aod: return "aerosol_optical_depth"
         case .usAQI: return "us_aqi"
-        case .radar, .satellite: return nil
+        case .grassPollen: return "grass_pollen"
+        case .birchPollen: return "birch_pollen"
+        case .radar, .satellite, .satelliteVisible: return nil
         }
     }
 
@@ -388,7 +396,8 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
         case .ozone, .co, .dust: return .pollutantCoarse
         case .aod: return .aod
         case .usAQI: return .aqi
-        case .radar, .satellite: return .clouds
+        case .grassPollen, .birchPollen: return .pollen
+        case .radar, .satellite, .satelliteVisible: return .clouds
         }
     }
 

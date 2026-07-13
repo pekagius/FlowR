@@ -23,11 +23,18 @@ warnings, webcams, favorites and configurable units.
 | Airgram | Time × altitude wind/cloud matrix (Canvas) |
 | Sounding | Vertical temperature/dew-point profile from pressure-level data, time-scrubbable |
 | Waves / swell / currents / SST | Open-Meteo Marine API layers + Waves tab |
-| Tides | Sea-level (tide) map layer + Tides tab: tide curve, high/low water times & heights (parabolic extremum refinement), tidal range, plus live water level from the nearest official PEGELONLINE/WSV gauge (German coast, e.g. Büsum) |
+| Tides | Sea-level (tide) map layer + Tides tab: tide curve, high/low water times & heights (parabolic extremum refinement), tidal range, plus live water level **and water temperature** from the nearest official PEGELONLINE/WSV gauge (German coast, e.g. Büsum) |
 | Air quality (PM2.5, PM10, NO₂, O₃, SO₂, CO, dust, AOD, AQI) | Open-Meteo Air Quality API layers + detail tab |
 | Weather radar + satellite | RainViewer tiles (radar past + nowcast, IR satellite) with frame animation |
 | Hurricane tracker | NOAA/NHC active storms plotted on the map |
-| Severe weather warnings | US NWS active alerts for the selected point |
+| Severe weather warnings | US NWS + German DWD warnings (Bright Sky) for the selected point |
+| Observed conditions | Live measurement from the nearest DWD station (Bright Sky): temp, wind, pressure |
+| Ensemble forecast | ~30-member ICON/GFS ensemble plume: median, middle-50 % band, full spread (forecast confidence) |
+| Weather history | Last 31 days observed: daily min–max temp, precipitation, max wind + extremes summary |
+| Sun & moon | Sunrise/sunset, daylight duration, computed moon phase + illumination |
+| Pollen | Grass/birch/alder/mugwort/olive/ragweed (CAMS, Europe) — map layers + detail grid |
+| Aviation weather | Live METAR + TAF from the nearest airports (NOAA AWC), flight category badges |
+| Satellite (visible) | NASA GIBS VIIRS true-color imagery, daily frames scrubbable over the last 8 days |
 | Webcams | Windy Webcams API v3 client (bring your own free API key in Settings) |
 | Model comparison | Per-model chart (temp/wind/gusts/rain) across 6 global models |
 | Search & favorites | Open-Meteo geocoding, favorites + recents persisted locally |
@@ -42,6 +49,10 @@ government warnings, paragliding/kite spot database, and Windy's premium 1-h glo
 - **RainViewer** — radar + IR satellite tile frames
 - **NOAA / NHC** — `CurrentStorms.json` hurricane feed
 - **US NWS** — `api.weather.gov` active alerts
+- **Bright Sky** — DWD open data (German warnings + station observations), no key
+- **NOAA AWC** — `aviationweather.gov` METAR/TAF, no key
+- **NASA GIBS** — VIIRS true-color satellite tiles, no key
+- **BigDataCloud** — client-side reverse geocoding for tapped points, no key
 - **PEGELONLINE (WSV)** — official German live water-level gauges, open data, no key
 - **Windy Webcams API** — optional, free key, entered in Settings
 

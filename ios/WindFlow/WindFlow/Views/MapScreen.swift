@@ -122,9 +122,15 @@ struct WeatherMapView: UIViewRepresentable {
             tileOverlay = nil
             tileTemplate = template
             if let template {
-                let overlay = MKTileOverlay(urlTemplate: template)
+                let overlay = RasterTileOverlay(urlTemplate: template)
                 overlay.canReplaceMapContent = false
-                overlay.maximumZ = 12
+                if appState.selectedLayer == .satelliteVisible {
+                    overlay.maximumZ = 9       // GIBS Level9 matrix set
+                    overlay.preferredAlpha = 1.0
+                } else {
+                    overlay.maximumZ = 12
+                    overlay.preferredAlpha = 0.75
+                }
                 map.addOverlay(overlay, level: .aboveRoads)
                 tileOverlay = overlay
             }
@@ -150,7 +156,7 @@ struct WeatherMapView: UIViewRepresentable {
             }
             if let tile = overlay as? MKTileOverlay {
                 let renderer = MKTileOverlayRenderer(tileOverlay: tile)
-                renderer.alpha = 0.75
+                renderer.alpha = (tile as? RasterTileOverlay)?.preferredAlpha ?? 0.75
                 return renderer
             }
             return MKOverlayRenderer(overlay: overlay)
@@ -209,6 +215,11 @@ struct WeatherMapView: UIViewRepresentable {
             true
         }
     }
+}
+
+/// MKTileOverlay carrying its own rendering opacity (radar vs. true-color satellite).
+final class RasterTileOverlay: MKTileOverlay {
+    var preferredAlpha: CGFloat = 0.75
 }
 
 final class StormAnnotation: NSObject, MKAnnotation {

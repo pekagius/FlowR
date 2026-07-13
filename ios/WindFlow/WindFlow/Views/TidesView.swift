@@ -233,6 +233,15 @@ struct TidesView: View {
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     Spacer()
+                    if let waterTemp = gauge.waterTempC {
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(settings.temperatureUnit.format(celsius: waterTemp))
+                                .font(.title3.bold()).monospacedDigit()
+                                .foregroundStyle(.teal)
+                            Text("water temp")
+                                .font(.caption2).foregroundStyle(.secondary)
+                        }
+                    }
                     VStack(alignment: .trailing, spacing: 1) {
                         Text(String(format: "%.0f cm", gauge.valueCm))
                             .font(.title3.bold()).monospacedDigit()

@@ -345,6 +345,11 @@ struct AirQualityView: View {
         ("dust", "Dust"),
     ]
 
+    private let pollenTypes: [(String, String)] = [
+        ("grass_pollen", "Grass"), ("birch_pollen", "Birch"), ("alder_pollen", "Alder"),
+        ("mugwort_pollen", "Mugwort"), ("olive_pollen", "Olive"), ("ragweed_pollen", "Ragweed"),
+    ]
+
     var body: some View {
         let hourly = airQuality.hourly
         let pm = timedValues(hourly, "pm2_5", hours: 72)
@@ -385,6 +390,36 @@ struct AirQualityView: View {
                         .foregroundStyle(.orange.opacity(0.5))
                 }
                 .frame(height: 130)
+            }
+
+            pollenSection
+        }
+    }
+
+    /// Pollen forecast (CAMS, Europe only) — hidden where no data exists.
+    @ViewBuilder
+    private var pollenSection: some View {
+        let hourly = airQuality.hourly
+        if let index = hourly.index(closestTo: Date()),
+           pollenTypes.contains(where: { hourly.value($0.0, at: index) != nil }) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Pollen · grains/m³").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 8)], spacing: 8) {
+                    ForEach(pollenTypes, id: \.0) { item in
+                        let value = hourly.value(item.0, at: index)
+                        VStack(spacing: 2) {
+                            Text(item.1).font(.system(size: 9)).foregroundStyle(.secondary)
+                            Text(value.map { String(format: "%.0f", $0) } ?? "—")
+                                .font(.callout.bold())
+                                .foregroundStyle(value.map { ColorScale.pollen.color(for: $0) } ?? .primary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+                Text("Pollen data: Copernicus CAMS via Open-Meteo, Europe only.")
+                    .font(.caption2).foregroundStyle(.tertiary)
             }
         }
     }

@@ -112,6 +112,42 @@ enum WeatherCode {
     }
 }
 
+/// Moon phase computed locally from the synodic cycle — no API needed.
+enum MoonPhase {
+    /// Fraction through the synodic month, 0 = new moon, 0.5 = full moon.
+    static func fraction(for date: Date) -> Double {
+        let knownNewMoon = 947_182_440.0   // 2000-01-06 18:14 UTC
+        let synodicMonth = 29.530588853 * 86400
+        let elapsed = date.timeIntervalSince1970 - knownNewMoon
+        let f = (elapsed.truncatingRemainder(dividingBy: synodicMonth)) / synodicMonth
+        return f < 0 ? f + 1 : f
+    }
+
+    /// Illuminated portion of the disc, 0…1.
+    static func illumination(for date: Date) -> Double {
+        (1 - cos(2 * .pi * fraction(for: date))) / 2
+    }
+
+    static func symbol(for date: Date) -> String {
+        let names = [
+            "moonphase.new.moon", "moonphase.waxing.crescent", "moonphase.first.quarter",
+            "moonphase.waxing.gibbous", "moonphase.full.moon", "moonphase.waning.gibbous",
+            "moonphase.last.quarter", "moonphase.waning.crescent",
+        ]
+        let index = Int((fraction(for: date) * 8).rounded()) % 8
+        return names[index]
+    }
+
+    static func name(for date: Date) -> String {
+        let names = [
+            "New moon", "Waxing crescent", "First quarter", "Waxing gibbous",
+            "Full moon", "Waning gibbous", "Last quarter", "Waning crescent",
+        ]
+        let index = Int((fraction(for: date) * 8).rounded()) % 8
+        return names[index]
+    }
+}
+
 /// All hourly variables requested for the point forecast detail.
 enum PointVariables {
     static let surface: [String] = [
@@ -143,5 +179,8 @@ enum PointVariables {
     static let airQuality: [String] = [
         "pm2_5", "pm10", "nitrogen_dioxide", "ozone", "sulphur_dioxide",
         "carbon_monoxide", "dust", "aerosol_optical_depth", "us_aqi", "european_aqi",
+        // Pollen (Europe only, CAMS)
+        "alder_pollen", "birch_pollen", "grass_pollen",
+        "mugwort_pollen", "olive_pollen", "ragweed_pollen",
     ]
 }
