@@ -1,0 +1,371 @@
+import SwiftUI
+import Charts
+
+/// Detail sheet shown when tapping the map or opening a favorite —
+/// Windy's point forecast with basic table, meteogram, airgram, sounding,
+/// waves, air quality, model comparison and warnings.
+struct PointForecastSheet: View {
+    let place: Place
+
+    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var settings: Settings
+    @EnvironmentObject private var favorites: FavoritesStore
+    @Environment(\.dismiss) private var dismiss
+
+    enum Tab: String, CaseIterable {
+        case forecast = "Forecast"
+        case meteogram = "Meteogram"
+        case airgram = "Airgram"
+        case sounding = "Sounding"
+        case waves = "Waves"
+        case airQuality = "Air quality"
+        case compare = "Compare"
+        case alerts = "Warnings"
+    }
+
+    @State private var tab: Tab = .forecast
+    @State private var forecast: PointForecast?
+    @State private var marine: MarineForecast?
+    @State private var airQuality: AirQualityForecast?
+    @State private var warnings: [WeatherWarning] = []
+    @State private var comparison: [ForecastModel: HourlySeries] = [:]
+    @State private var loadError: String?
+
+    private var availableTabs: [Tab] {
+        var tabs: [Tab] = [.forecast, .meteogram, .airgram, .sounding]
+        if marine != nil { tabs.append(.waves) }
+        if airQuality != nil { tabs.append(.airQuality) }
+        tabs.append(.compare)
+        if !warnings.isEmpty { tabs.append(.alerts) }
+        return tabs
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+                .padding(.horizontal)
+                .padding(.top, 14)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(availableTabs, id: \.self) { item in
+                        tabChip(item)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+            }
+
+            Divider()
+
+            ScrollView {
+                content
+                    .padding()
+            }
+        }
+        .task(id: place.id) { await load() }
+    }
+
+    private func tabChip(_ item: Tab) -> some View {
+        Button {
+            tab = item
+        } label: {
+            HStack(spacing: 4) {
+                if item == .alerts {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                }
+                Text(item.rawValue)
+            }
+            .font(.caption.weight(tab == item ? .bold : .regular))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                tab == item ? AnyShapeStyle(Color.accentColor.opacity(0.2)) : AnyShapeStyle(.quaternary.opacity(0.4)),
+                in: Capsule()
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: header
+
+    private var header: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(place.name).font(.headline)
+                HStack(spacing: 6) {
+                    if !place.subtitle.isEmpty {
+                        Text(place.subtitle)
+                    }
+                    if let elevation = forecast?.elevation {
+                        Text("⛰ \(Int(elevation)) m")
+                    }
+                    Text(appState.model.label)
+                        .padding(.horizontal, 5)
+                        .background(.quaternary, in: Capsule())
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            currentConditions
+            Button {
+                favorites.toggleFavorite(place)
+            } label: {
+                Image(systemName: favorites.isFavorite(place) ? "star.fill" : "star")
+                    .foregroundStyle(.yellow)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private var currentConditions: some View {
+        if let forecast, let index = forecast.hourly.index(closestTo: Date()) {
+            let temp = forecast.hourly.value("temperature_2m", at: index)
+            let wind = forecast.hourly.value("wind_speed_10m", at: index)
+            let code = forecast.hourly.value("weather_code", at: index).map(Int.init) ?? 3
+            let isDay = (forecast.hourly.value("is_day", at: index) ?? 1) > 0
+            HStack(spacing: 8) {
+                Image(systemName: WeatherCode.symbol(code, isDay: isDay))
+                    .symbolRenderingMode(.multicolor)
+                    .font(.title2)
+                VStack(alignment: .leading, spacing: 0) {
+                    if let temp { Text(settings.temperatureUnit.format(celsius: temp)).font(.title3.bold()) }
+                    if let wind {
+                        Text("\(settings.windUnit.format(ms: wind)) \(settings.windUnit.label)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.trailing, 6)
+        }
+    }
+
+    // MARK: content switch
+
+    @ViewBuilder
+    private var content: some View {
+        if let error = loadError {
+            ContentUnavailableView("Couldn't load forecast", systemImage: "wifi.exclamationmark", description: Text(error))
+        } else if forecast == nil {
+            ProgressView("Loading forecast…")
+                .frame(maxWidth: .infinity, minHeight: 160)
+        } else if let forecast {
+            switch tab {
+            case .forecast: ForecastTab(forecast: forecast)
+            case .meteogram: MeteogramView(forecast: forecast)
+            case .airgram: AirgramView(forecast: forecast)
+            case .sounding: SoundingView(forecast: forecast)
+            case .waves: if let marine { WavesView(marine: marine) }
+            case .airQuality: if let airQuality { AirQualityView(airQuality: airQuality) }
+            case .compare: CompareModelsView(place: place, comparison: comparison)
+            case .alerts: WarningsView(warnings: warnings)
+            }
+        }
+    }
+
+    // MARK: loading
+
+    private func load() async {
+        forecast = nil
+        loadError = nil
+        marine = nil
+        airQuality = nil
+        warnings = []
+        do {
+            async let forecastTask = OpenMeteoClient.shared.pointForecast(for: place, model: appState.model)
+            async let marineTask = OpenMeteoClient.shared.marineForecast(for: place)
+            async let airTask = OpenMeteoClient.shared.airQualityForecast(for: place)
+            async let warningsTask = AlertsService.shared.alerts(for: place.coordinate)
+            async let comparisonTask = OpenMeteoClient.shared.compareModels(for: place, models: ForecastModel.comparable)
+
+            forecast = try await forecastTask
+            marine = (try? await marineTask) ?? nil
+            airQuality = (try? await airTask) ?? nil
+            warnings = (try? await warningsTask) ?? []
+            comparison = (try? await comparisonTask) ?? [:]
+        } catch {
+            loadError = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - Forecast tab: daily strip + hourly table
+
+struct ForecastTab: View {
+    let forecast: PointForecast
+    @EnvironmentObject private var settings: Settings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(forecast.daily) { day in
+                        dailyCard(day)
+                    }
+                }
+            }
+
+            Text("Hourly")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 0) {
+                ForEach(hourlyIndices, id: \.self) { index in
+                    hourlyRow(index)
+                    Divider()
+                }
+            }
+        }
+    }
+
+    private var hourlyIndices: [Int] {
+        guard let start = forecast.hourly.index(closestTo: Date()) else { return [] }
+        let end = min(start + 48, forecast.hourly.times.count)
+        return Array(start..<end)
+    }
+
+    private func dailyCard(_ day: DailySummary) -> some View {
+        VStack(spacing: 4) {
+            Text(day.date, format: .dateTime.weekday(.abbreviated))
+                .font(.caption2.weight(.semibold))
+            Image(systemName: WeatherCode.symbol(day.weatherCode))
+                .symbolRenderingMode(.multicolor)
+                .font(.title3)
+                .frame(height: 22)
+            Text(settings.temperatureUnit.format(celsius: day.tempMax)).font(.caption.bold())
+            Text(settings.temperatureUnit.format(celsius: day.tempMin))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 2) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 7))
+                    .rotationEffect(.degrees(day.windDirection + 180))
+                Text(settings.windUnit.format(ms: day.windMax))
+                    .font(.system(size: 9))
+            }
+            .foregroundStyle(.secondary)
+            if day.precipSum > 0.1 {
+                Text(settings.precipUnit.format(mm: day.precipSum))
+                    .font(.system(size: 8))
+                    .foregroundStyle(.blue)
+            }
+        }
+        .frame(width: 62)
+        .padding(.vertical, 8)
+        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func hourlyRow(_ index: Int) -> some View {
+        let hourly = forecast.hourly
+        let time = hourly.times[index]
+        let code = hourly.value("weather_code", at: index).map(Int.init) ?? 3
+        let isDay = (hourly.value("is_day", at: index) ?? 1) > 0
+        let temp = hourly.value("temperature_2m", at: index)
+        let precip = hourly.value("precipitation", at: index) ?? 0
+        let precipProb = hourly.value("precipitation_probability", at: index)
+        let wind = hourly.value("wind_speed_10m", at: index)
+        let gust = hourly.value("wind_gusts_10m", at: index)
+        let dir = hourly.value("wind_direction_10m", at: index) ?? 0
+
+        var timeFormat = Date.FormatStyle.dateTime.hour(.twoDigits(amPM: .abbreviated))
+        timeFormat.timeZone = forecast.timeZone
+        var dayFormat = Date.FormatStyle.dateTime.weekday(.abbreviated)
+        dayFormat.timeZone = forecast.timeZone
+
+        return HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(time, format: timeFormat).font(.caption.monospacedDigit())
+                Text(time, format: dayFormat).font(.system(size: 8)).foregroundStyle(.tertiary)
+            }
+            .frame(width: 52, alignment: .leading)
+
+            Image(systemName: WeatherCode.symbol(code, isDay: isDay))
+                .symbolRenderingMode(.multicolor)
+                .frame(width: 26)
+
+            Text(temp.map { settings.temperatureUnit.format(celsius: $0) } ?? "—")
+                .font(.callout.weight(.semibold))
+                .frame(width: 44, alignment: .trailing)
+                .foregroundStyle(temp.map { ColorScale.temperature.color(for: $0) } ?? .primary)
+
+            VStack(alignment: .leading, spacing: 0) {
+                if precip > 0.05 {
+                    Text(settings.precipUnit.format(mm: precip))
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                }
+                if let precipProb, precipProb >= 5 {
+                    Text("\(Int(precipProb)) %")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 54, alignment: .leading)
+
+            Spacer()
+
+            Image(systemName: "arrow.up")
+                .font(.caption2)
+                .rotationEffect(.degrees(dir + 180))
+                .foregroundStyle(.secondary)
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(wind.map { "\(settings.windUnit.format(ms: $0)) \(settings.windUnit.label)" } ?? "—")
+                    .font(.caption)
+                    .foregroundStyle(wind.map { ColorScale.wind.color(for: $0) } ?? .primary)
+                if let gust {
+                    Text("G \(settings.windUnit.format(ms: gust))")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .frame(width: 60, alignment: .trailing)
+        }
+        .padding(.vertical, 5)
+    }
+}
+
+// MARK: - Warnings tab
+
+struct WarningsView: View {
+    let warnings: [WeatherWarning]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if warnings.isEmpty {
+                ContentUnavailableView("No active warnings", systemImage: "checkmark.shield")
+            }
+            ForEach(warnings) { warning in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(warning.severityRank >= 3 ? .red : .orange)
+                        Text(warning.event).font(.subheadline.bold())
+                        Spacer()
+                        Text(warning.severity)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.quaternary, in: Capsule())
+                    }
+                    if !warning.headline.isEmpty {
+                        Text(warning.headline).font(.caption.weight(.medium))
+                    }
+                    Text(warning.areaDesc).font(.caption2).foregroundStyle(.secondary)
+                    Text(warning.description)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(8)
+                }
+                .padding(10)
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+            }
+            Text("Warnings: US National Weather Service (US coverage only).")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+}

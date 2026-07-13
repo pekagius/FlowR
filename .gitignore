@@ -220,3 +220,8 @@ _Pvt_Extensions
 # Project Rider
 *.iml
 .idea
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+.DS_Store
