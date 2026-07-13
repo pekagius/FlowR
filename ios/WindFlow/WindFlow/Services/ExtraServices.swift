@@ -177,6 +177,75 @@ struct WebcamService {
     }
 }
 
+// MARK: - PEGELONLINE (WSV) — official German live water-level gauges, open data
+
+struct GaugeReading {
+    let stationName: String
+    let valueCm: Double          // above gauge datum (PNP)
+    let timestamp: Date?
+    let distanceKm: Double
+    let latitude: Double
+    let longitude: Double
+}
+
+struct PegelOnlineService {
+    static let shared = PegelOnlineService()
+
+    /// Nearest water-level gauge with a current measurement, within `radiusKm`.
+    func nearestReading(to coordinate: CLLocationCoordinate2D, radiusKm: Double = 60) async throws -> GaugeReading? {
+        struct Station: Decodable {
+            let shortname: String?
+            let longname: String?
+            let latitude: Double?
+            let longitude: Double?
+            let timeseries: [Series]?
+
+            struct Series: Decodable {
+                let shortname: String?
+                let unit: String?
+                let currentMeasurement: Measurement?
+                struct Measurement: Decodable {
+                    let timestamp: String?
+                    let value: Double?
+                }
+            }
+        }
+
+        var components = URLComponents(string: "https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations.json")!
+        components.queryItems = [
+            .init(name: "latitude", value: String(format: "%.4f", coordinate.latitude)),
+            .init(name: "longitude", value: String(format: "%.4f", coordinate.longitude)),
+            .init(name: "radius", value: String(Int(radiusKm))),
+            .init(name: "includeTimeseries", value: "true"),
+            .init(name: "includeCurrentMeasurement", value: "true"),
+            .init(name: "timeseries", value: "W"),
+        ]
+        let (data, response) = try await URLSession.shared.data(from: components.url!)
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            return nil   // outside Germany / service hiccup — feature degrades gracefully
+        }
+        let stations = try JSONDecoder().decode([Station].self, from: data)
+        let here = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        let iso = ISO8601DateFormatter()
+
+        let candidates: [GaugeReading] = stations.compactMap { station in
+            guard let lat = station.latitude, let lon = station.longitude,
+                  let series = station.timeseries?.first(where: { $0.shortname == "W" }),
+                  let value = series.currentMeasurement?.value else { return nil }
+            let distance = here.distance(from: CLLocation(latitude: lat, longitude: lon)) / 1000
+            return GaugeReading(
+                stationName: (station.longname ?? station.shortname ?? "Gauge").capitalized,
+                valueCm: value,
+                timestamp: series.currentMeasurement?.timestamp.flatMap { iso.date(from: $0) },
+                distanceKm: distance,
+                latitude: lat,
+                longitude: lon
+            )
+        }
+        return candidates.min { $0.distanceKm < $1.distanceKm }
+    }
+}
+
 // MARK: - Device location
 
 final class LocationService: NSObject, ObservableObject, CLLocationManagerDelegate {

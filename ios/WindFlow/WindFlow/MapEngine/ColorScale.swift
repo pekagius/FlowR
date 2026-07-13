@@ -153,6 +153,12 @@ struct ColorScale {
         .init(8, 0xD1503C), .init(12, 0x8A2F62),
     ])
 
+    static let seaLevel = ColorScale(stops: [             // m relative to MSL
+        .init(-4, 0x4A2F8F), .init(-2.5, 0x3D50C8), .init(-1, 0x3E8CC0),
+        .init(0, 0x40B08B), .init(1, 0xC7C040), .init(2.5, 0xE0973C),
+        .init(4, 0xD1503C),
+    ])
+
     static let currents = ColorScale(stops: [             // m/s
         .init(0, 0x2F4A80), .init(0.25, 0x3E8CC0), .init(0.5, 0x40B08B),
         .init(1, 0xC7C040), .init(1.5, 0xE0973C), .init(2.5, 0xD1503C),

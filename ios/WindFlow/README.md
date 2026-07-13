@@ -23,6 +23,7 @@ warnings, webcams, favorites and configurable units.
 | Airgram | Time × altitude wind/cloud matrix (Canvas) |
 | Sounding | Vertical temperature/dew-point profile from pressure-level data, time-scrubbable |
 | Waves / swell / currents / SST | Open-Meteo Marine API layers + Waves tab |
+| Tides | Sea-level (tide) map layer + Tides tab: tide curve, high/low water times & heights (parabolic extremum refinement), tidal range, plus live water level from the nearest official PEGELONLINE/WSV gauge (German coast, e.g. Büsum) |
 | Air quality (PM2.5, PM10, NO₂, O₃, SO₂, CO, dust, AOD, AQI) | Open-Meteo Air Quality API layers + detail tab |
 | Weather radar + satellite | RainViewer tiles (radar past + nowcast, IR satellite) with frame animation |
 | Hurricane tracker | NOAA/NHC active storms plotted on the map |
@@ -41,6 +42,7 @@ government warnings, paragliding/kite spot database, and Windy's premium 1-h glo
 - **RainViewer** — radar + IR satellite tile frames
 - **NOAA / NHC** — `CurrentStorms.json` hurricane feed
 - **US NWS** — `api.weather.gov` active alerts
+- **PEGELONLINE (WSV)** — official German live water-level gauges, open data, no key
 - **Windy Webcams API** — optional, free key, entered in Settings
 
 ## Building

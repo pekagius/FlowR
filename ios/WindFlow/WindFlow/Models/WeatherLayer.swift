@@ -153,7 +153,7 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
     // Pressure & thermodynamics
     case pressure, cape
     // Sea
-    case waves, windWaves, swell1, swell2, currents, seaTemperature
+    case waves, windWaves, swell1, swell2, currents, seaTemperature, seaLevel
     // Air quality
     case pm25, pm10, no2, ozone, so2, co, dust, aod, usAQI
     // Raster
@@ -190,6 +190,7 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
         case .swell2: return "Secondary swell"
         case .currents: return "Currents"
         case .seaTemperature: return "Sea temperature"
+        case .seaLevel: return "Sea level (tide)"
         case .pm25: return "PM2.5"
         case .pm10: return "PM10"
         case .no2: return "NO₂"
@@ -224,6 +225,7 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
         case .waves, .windWaves, .swell1, .swell2: return "water.waves"
         case .currents: return "arrow.trianglehead.swap"
         case .seaTemperature: return "thermometer.and.liquid.waves"
+        case .seaLevel: return "arrow.up.and.down.circle"
         case .pm25, .pm10, .dust, .aod: return "aqi.medium"
         case .no2, .ozone, .so2, .co: return "carbon.monoxide.cloud"
         case .usAQI: return "leaf"
@@ -239,7 +241,7 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
         case .rain, .rainAccumulation, .snowfall, .snowDepth, .freezingLevel: return .rain
         case .clouds, .cloudsLow, .cloudsMid, .cloudsHigh, .visibility, .uvIndex, .solarRadiation: return .clouds
         case .pressure, .cape: return .pressure
-        case .waves, .windWaves, .swell1, .swell2, .currents, .seaTemperature: return .sea
+        case .waves, .windWaves, .swell1, .swell2, .currents, .seaTemperature, .seaLevel: return .sea
         case .pm25, .pm10, .no2, .ozone, .so2, .co, .dust, .aod, .usAQI: return .airQuality
         case .radar, .satellite: return .radar
         }
@@ -247,7 +249,7 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
 
     var source: LayerSource {
         switch self {
-        case .waves, .windWaves, .swell1, .swell2, .currents, .seaTemperature: return .marine
+        case .waves, .windWaves, .swell1, .swell2, .currents, .seaTemperature, .seaLevel: return .marine
         case .pm25, .pm10, .no2, .ozone, .so2, .co, .dust, .aod, .usAQI: return .airQuality
         case .radar, .satellite: return .rasterTiles
         case .rainAccumulation: return .computed
@@ -269,7 +271,7 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
         case .solarRadiation: return .wm2
         case .pressure: return .pressure
         case .cape: return .jkg
-        case .waves, .windWaves, .swell1, .swell2: return .waveHeight
+        case .waves, .windWaves, .swell1, .swell2, .seaLevel: return .waveHeight
         case .currents: return .speedKn
         case .pm25, .pm10, .no2, .ozone, .so2, .co, .dust: return .microgram
         case .aod: return .none
@@ -324,6 +326,7 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
         case .swell2: return "secondary_swell_wave_height"
         case .currents: return "ocean_current_velocity"
         case .seaTemperature: return "sea_surface_temperature"
+        case .seaLevel: return "sea_level_height_msl"
         case .pm25: return "pm2_5"
         case .pm10: return "pm10"
         case .no2: return "nitrogen_dioxide"
@@ -380,6 +383,7 @@ enum WeatherLayer: String, CaseIterable, Codable, Identifiable {
         case .cape: return .cape
         case .waves, .windWaves, .swell1, .swell2: return .waves
         case .currents: return .currents
+        case .seaLevel: return .seaLevel
         case .pm25, .pm10, .no2, .so2: return .pollutantFine
         case .ozone, .co, .dust: return .pollutantCoarse
         case .aod: return .aod

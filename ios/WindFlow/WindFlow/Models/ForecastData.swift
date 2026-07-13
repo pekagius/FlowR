@@ -137,6 +137,7 @@ enum PointVariables {
         "wind_wave_height", "wind_wave_direction", "wind_wave_period",
         "swell_wave_height", "swell_wave_direction", "swell_wave_period",
         "sea_surface_temperature", "ocean_current_velocity", "ocean_current_direction",
+        "sea_level_height_msl",
     ]
 
     static let airQuality: [String] = [

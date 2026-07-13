@@ -18,6 +18,7 @@ struct PointForecastSheet: View {
         case airgram = "Airgram"
         case sounding = "Sounding"
         case waves = "Waves"
+        case tides = "Tides"
         case airQuality = "Air quality"
         case compare = "Compare"
         case alerts = "Warnings"
@@ -34,10 +35,16 @@ struct PointForecastSheet: View {
     private var availableTabs: [Tab] {
         var tabs: [Tab] = [.forecast, .meteogram, .airgram, .sounding]
         if marine != nil { tabs.append(.waves) }
+        if hasTideData { tabs.append(.tides) }
         if airQuality != nil { tabs.append(.airQuality) }
         tabs.append(.compare)
         if !warnings.isEmpty { tabs.append(.alerts) }
         return tabs
+    }
+
+    private var hasTideData: Bool {
+        guard let marine else { return false }
+        return marine.hourly.series("sea_level_height_msl").contains { $0 != nil }
     }
 
     var body: some View {
@@ -160,6 +167,7 @@ struct PointForecastSheet: View {
             case .airgram: AirgramView(forecast: forecast)
             case .sounding: SoundingView(forecast: forecast)
             case .waves: if let marine { WavesView(marine: marine) }
+            case .tides: if let marine { TidesView(marine: marine, timeZone: forecast.timeZone, place: place) }
             case .airQuality: if let airQuality { AirQualityView(airQuality: airQuality) }
             case .compare: CompareModelsView(place: place, comparison: comparison)
             case .alerts: WarningsView(warnings: warnings)
